@@ -1,6 +1,17 @@
 const router = require('express').Router()
+const jwt = require('jsonwebtoken')
+const config = require('../utils/config')
 const Note = require('../models/note')
 const User = require('../models/user')
+
+const getTokenFrom = (req) => {
+  const authorization = req.get('authorization')
+  if (authorization && authorization.toLowerCase().startsWith('bearer')) {
+    return authorization.substring(7)
+  }
+  return null
+}
+
 
 router.get('/', async (req, res, next) => {
   const notes = await Note.find().populate('user', { username: 1, name: 1 })
@@ -21,8 +32,16 @@ router.get('/:id', (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   const body = req.body
-
-  const user = await User.findById(body.userId)
+  const token = getTokenFrom(req)
+  if (!token) {
+    return res.status(401).json({ error: 'token无效' })
+  }
+  const decodedToken = jwt.verify(token, config.SECRET)
+  if (!decodedToken) {
+    return res.status(401).json({ error: 'token无效' })
+  }
+  
+  const user = await User.findById(decodedToken.id)
   
   const note = new Note({
     content: body.content,
